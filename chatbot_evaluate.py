@@ -1,6 +1,8 @@
 import pandas as pd
 import requests
 from RAG import RAGRetriever
+from nltk.translate.bleu_score import sentence_bleu
+from rouge_score import rouge_scorer
 
 # Load test dataset
 test_data = pd.read_csv("dataset/test_multiple healthcare data.csv")
@@ -13,10 +15,13 @@ rag.load_faiss_index()
 total = len(test_data)
 correct_retrievals = 0
 correct_answers = 0
+bleu_scores = []
+rouge1_scores = []
+rougeL_scores = []
 
 for index, row in test_data.iterrows():
     test_query = row["question"]
-    ground_truth = row["cop"]  # Expected correct option
+    ground_truth = str(row["cop"])  # Expected correct option
 
     # Retrieve context from FAISS
     retrieved_contexts = rag.retrieve_context(test_query)
@@ -32,13 +37,31 @@ for index, row in test_data.iterrows():
 
     if response.status_code == 200:
         generated_answer = response.json()["response"]
+
+        # Check if generated answer contains the correct option
         if str(ground_truth) in generated_answer:
             correct_answers += 1
 
-# Compute scores
+        # Compute BLEU Score
+        bleu_score = sentence_bleu([ground_truth.split()], generated_answer.split())
+        bleu_scores.append(bleu_score)
+
+        # Compute ROUGE Score
+        scorer = rouge_scorer.RougeScorer(["rouge1", "rougeL"], use_stemmer=True)
+        rouge_scores = scorer.score(ground_truth, generated_answer)
+        rouge1_scores.append(rouge_scores["rouge1"].fmeasure)
+        rougeL_scores.append(rouge_scores["rougeL"].fmeasure)
+
+# Compute overall scores
 retrieval_accuracy = correct_retrievals / total * 100
 answer_accuracy = correct_answers / total * 100
+avg_bleu = sum(bleu_scores) / total * 100
+avg_rouge1 = sum(rouge1_scores) / total * 100
+avg_rougeL = sum(rougeL_scores) / total * 100
 
 # Display results
 print(f"Retrieval Accuracy: {retrieval_accuracy:.2f}%")
 print(f"LLM Answer Accuracy: {answer_accuracy:.2f}%")
+print(f"Average BLEU Score: {avg_bleu:.2f}")
+print(f"Average ROUGE-1 Score: {avg_rouge1:.2f}")
+print(f"Average ROUGE-L Score: {avg_rougeL:.2f}")
