@@ -4,8 +4,12 @@ from RAG import RAGRetriever
 from nltk.translate.bleu_score import sentence_bleu
 from rouge_score import rouge_scorer
 
-# Load test dataset
-test_data = pd.read_csv("dataset/test_multiple healthcare data.csv")
+# Load test datasets
+test_data_1 = pd.read_csv("dataset/test_multiple healthcare data.csv")
+test_data_2 = pd.read_csv("dataset/kaggle_healthcare data.csv")
+
+# Combine both datasets for full evaluation
+test_data = pd.concat([test_data_1, test_data_2])
 
 # Initialize RAG retriever
 rag = RAGRetriever("dataset/kaggle_healthcare data.csv", "dataset/multiple healthcare data.csv")
@@ -21,7 +25,13 @@ rougeL_scores = []
 
 for index, row in test_data.iterrows():
     test_query = row["question"]
-    ground_truth = str(row["cop"])  # Expected correct option
+
+    # Extract actual correct answer (map cop to the correct choice)
+    if "cop" in row:
+        choices = [row["opa"], row["opb"], row["opc"], row["opd"]]
+        ground_truth = choices[int(row["cop"]) - 1]  # Convert cop (1,2,3,4) to actual text
+    else:
+        ground_truth = row["short_answer"]  # Use short answer from Kaggle dataset
 
     # Retrieve context from FAISS
     retrieved_contexts = rag.retrieve_context(test_query)
