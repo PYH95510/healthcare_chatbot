@@ -11,7 +11,7 @@ combined_df = pd.concat([train_df, validation_df], ignore_index=True)
 trained= pd.concat([test_df], ignore_index=True)
 
 combined_df.to_csv("multiple_healthcare_data.csv", index=False)
-trained.to_csv("test_multiple healthcare data.csv",index=False)
+trained.to_csv("test_multiple_healthcare_data.csv",index=False)
 '''
 '''
 validation_df = pd.read_csv('./dataset/validation_data_chatbot.csv')
