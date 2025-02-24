@@ -57,7 +57,7 @@ for index, row in test_data.iterrows():
     try:
         # Send query + retrieved context to chatbot LLM (localhost:8000)
         chatbot_response = requests.post("http://localhost:8000/generate",
-                                         json={"prompt": chatbot_prompt}, timeout=30)
+                                         json={"prompt": chatbot_prompt}, timeout=10)
         chatbot_response.raise_for_status()
         chatbot_answer = chatbot_response.json().get("response", "").strip()
     except requests.exceptions.RequestException as e:

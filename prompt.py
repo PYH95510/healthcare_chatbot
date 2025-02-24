@@ -15,12 +15,11 @@ class PromptGenerator:
         return f"Context: {context}\n\nQuestion: {question}\nAnswer:"
 
     def cot_prompt(self, context, question):
-        """Generates a Chain-of-Thought (CoT) enhanced prompt."""
+        """Generates a Chain-of-Thought (CoT) enhanced prompt that keeps internal reasoning hidden."""
         return (
             f"Context: {context}\n\n"
             f"Question: {question}\n\n"
-            "Let's think step by step before answering."
-            " What are the key aspects to consider? Explain step by step.\n\n"
+            "Please think carefully and consider all key aspects internally, but only provide a concise final answer without revealing your internal reasoning.\n\n"
             "Final Answer:"
         )
 
