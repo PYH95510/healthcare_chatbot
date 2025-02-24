@@ -70,7 +70,6 @@ Consisted with two major datasets. In total, there are 237,000 columns.
 |  |  |  |
 |-----------------|-----------------|-----------------|
 | FastAPI    |  <img src="https://github.com/user-attachments/assets/56acaf71-6fcd-4cb6-bf14-fb0668552c91" alt="FastAPI" width="100">    | 0.115.8    |
-![image](https://github.com/user-attachments/assets/56acaf71-6fcd-4cb6-bf14-fb0668552c91)
 
 <br/>
 
@@ -122,3 +121,16 @@ topic_name : Medical topic name from the particular subject
 
 # 7. Conclusion
 <img width="100%" alt="Final" src="https://github.com/user-attachments/assets/2118ed95-f2fb-4a2b-aa72-9676db16dc8d">
+<img width="100%" alt="Setting" src="https://github.com/user-attachments/assets/fdb8f954-ca62-4fd7-bcf7-0b53d4c436ae">
+<img width="100%" alt="Running" src="https://github.com/user-attachments/assets/b7b9c204-421a-4c02-8f77-95c14be9f64a">
+
+# 8. Things could be improved
+- **Improved LLMs**:
+  - Currently, I am using Llama3.2 1B model for fast response. Also, I was unable to work with vLLMs, In the future, using various tools, so that I could use stronger LLM models for better answers
+  
+- **LLM as a judge**:
+    - Having more strong judge LLM for better understanding the chatbot generated responses
+    - prompt engineering for judge LLM
+
+- **UI/UX enhancement**:
+    - This project mainly focuses on LLM and chatbot functionality. Better UI is needed in the future
