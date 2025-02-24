@@ -29,19 +29,18 @@ class PromptGenerator:
         return f"Context: {context}\n\nQuestion: {user_query}\nAnswer:"
 
     def llm_judge_prompt(self, question, expected_answer, generated_answer):
-        """Generates the evaluation prompt used in LLM_judge.py."""
         return (
-            "You are an AI judge evaluating chatbot responses. \n"
-            "Please rate the chatbot's response on a scale from 1 to 10 based on:\n"
-            "- **Relevance** (Is it on-topic?)\n"
-            "- **Correctness** (Is it factually accurate?)\n"
-            "- **Coherence** (Is it well-structured?)\n"
-            "- **Completeness** (Does it fully answer the question?)\n"
-            "- **Conciseness** (Is it the right length?)\n\n"
-            f"Here is the **question**: {question}\n"
-            f"The **expected correct answer** is: {expected_answer}\n"
-            f"The **chatbot's response** is: {generated_answer}\n\n"
-            "Please provide a **single number (1-10)** as your final score."
+            "You are an AI judge evaluating a chatbot response. Based on the following criteria:\n"
+            "- Relevance\n"
+            "- Correctness\n"
+            "- Coherence\n"
+            "- Completeness\n"
+            "- Conciseness\n\n"
+            f"Question: {question}\n"
+            f"Expected Answer: {expected_answer}\n"
+            f"Chatbot Response: {generated_answer}\n\n"
+            "Just provide **single numeric value between 1 and 10**. "
+            "Your response must include **only this number** without any additional text or explanation."
         )
 
 

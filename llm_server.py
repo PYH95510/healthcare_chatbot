@@ -1,25 +1,13 @@
-import os
-import torch
 from fastapi import FastAPI
 from pydantic import BaseModel
-from transformers import AutoModelForCausalLM, AutoTokenizer
+import requests
 
-# Prevent resource leaks
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
-# Define model name
-model_name = "meta-llama/Llama-3.2-1B"
-
-# Load tokenizer and model
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(
-    model_name,
-    torch_dtype=torch.float16,
-    device_map="cpu"  # Run on CPU
-)
-
-# FastAPI app
+# Initialize FastAPI app
 app = FastAPI()
+
+# Define the Ollama model name
+OLLAMA_MODEL = "llama3.2-1B-instruct"
+
 
 class Query(BaseModel):
     prompt: str
@@ -27,16 +15,27 @@ class Query(BaseModel):
 
 @app.post("/generate")
 async def generate_response(query: Query):
-    """Generate AI response using LLaMA 3.2-1B."""
-    inputs = tokenizer(query.prompt, return_tensors="pt").to("cpu")
+    """Generate AI response using Ollama."""
 
-    with torch.no_grad():
-        outputs = model.generate(**inputs, max_new_tokens=100)  # Fix: Use max_new_tokens
+    # Send the request to Ollama API
+    response = requests.post(
+        "http://localhost:11434/api/generate",
+        json={"model": OLLAMA_MODEL, "prompt": query.prompt, "stream": False}
+    )
 
-    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    return {"response": response}
+    # Handle errors
+    if response.status_code != 200:
+        return {"error": "Failed to generate response from Ollama"}
+
+    # Extract response text
+    result = response.json()
+    generated_text = result.get("response", "").strip()
+
+    return {"response": generated_text}
 
 
+# Run the server on Port 8000
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,9 +1,18 @@
 import pandas as pd
 import requests
-import time
+import re
 from RAG import RAGRetriever
-from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
-from rouge_score import rouge_scorer
+from prompt import PromptGenerator
+
+def extract_numeric_score(response_text):
+    """
+    Extract the first occurrence of a numeric value (integer or float)
+    from a string. Returns None if no number is found.
+    """
+    match = re.search(r"(\d+(\.\d+)?)", response_text)
+    if match:
+        return float(match.group(1))
+    return None
 
 # Load test datasets
 test_data_1 = pd.read_csv("dataset/test_multiple_healthcare_data.csv")
@@ -16,25 +25,23 @@ test_data = pd.concat([test_data_1, test_data_2])
 rag = RAGRetriever("dataset/kaggle_healthcare data.csv", "dataset/multiple healthcare data.csv")
 rag.load_faiss_index()
 
+# Initialize prompt generator
+prompt_gen = PromptGenerator()
+
 # Evaluation metrics
 total = len(test_data)
 correct_retrievals = 0
-correct_answers = 0
-bleu_scores = []
-rouge1_scores = []
-rougeL_scores = []
-smooth = SmoothingFunction().method1  # Use BLEU smoothing
+llm_scores = []
 
 for index, row in test_data.iterrows():
     test_query = row["question"]
-    print(f"Processing Query {index + 1}/{total}...")  # Track progress
 
-    # Extract actual correct answer
+    # Extract actual correct answer (map cop to the correct choice)
     if "cop" in row:
         choices = [row["opa"], row["opb"], row["opc"], row["opd"]]
         ground_truth = choices[int(row["cop"]) - 1]  # Convert cop (1,2,3,4) to actual text
     else:
-        ground_truth = row["short_answer"]
+        ground_truth = row["short_answer"]  # Use short answer from Kaggle dataset
 
     # Retrieve context from FAISS
     retrieved_contexts = rag.retrieve_context(test_query)
@@ -44,59 +51,47 @@ for index, row in test_data.iterrows():
     if any(ground_truth in ctx for ctx in retrieved_contexts):
         correct_retrievals += 1
 
-    # Send query to LLM server with retries
-    prompt = f"Context: {context_text}\n\nQuestion: {test_query}\nAnswer:"
-    generated_answer = ""
+    # Construct prompt for chatbot
+    chatbot_prompt = prompt_gen.chatbot_prompt(context_text, test_query)
 
-    for attempt in range(2):  # Retry twice before skipping
-        try:
-            response = requests.post("http://localhost:8000/generate", json={"prompt": prompt}, timeout=5)
-            response.raise_for_status()
-            generated_answer = response.json().get("response", "")
-            break  # Stop retrying if successful
-        except requests.exceptions.Timeout:
-            print(f"⚠️ Timeout (Attempt {attempt + 1}/2): {test_query}")
-            time.sleep(2)  # Wait before retrying
-        except requests.exceptions.ConnectionError:
-            print("❌ Error: LLM server is not running. Please start `llm_server.py`.")
-            exit()
-        except requests.exceptions.RequestException as e:
-            print(f"⚠️ Error: {e}")
-            break
+    try:
+        # Send query + retrieved context to chatbot LLM (localhost:8000)
+        chatbot_response = requests.post("http://localhost:8000/generate",
+                                         json={"prompt": chatbot_prompt}, timeout=30)
+        chatbot_response.raise_for_status()
+        chatbot_answer = chatbot_response.json().get("response", "").strip()
+    except requests.exceptions.RequestException as e:
+        print(f"⚠️ Error in chatbot response: {e}")
+        chatbot_answer = ""
 
-    # Skip this query if we couldn't get a response
-    if not generated_answer:
-        continue
+    # Construct evaluation prompt using chatbot's answer
+    eval_prompt = prompt_gen.llm_judge_prompt(test_query, ground_truth, chatbot_answer)
 
-        # Check if generated answer contains the correct option
-    if str(ground_truth) in generated_answer:
-        correct_answers += 1
-
-    # Compute BLEU Score (avoid zero BLEU issues)
-    if len(generated_answer.split()) < 5:
-        bleu_score = 0.5  # Default score for very short answers
-    else:
-        bleu_score = sentence_bleu([ground_truth.split()], generated_answer.split(),
-                                   weights=(0.5, 0.5, 0, 0),
-                                   smoothing_function=smooth)
-    bleu_scores.append(bleu_score)
-
-    # Compute ROUGE Score (better for medical answers)
-    scorer = rouge_scorer.RougeScorer(["rouge1", "rougeL"], use_stemmer=True)
-    rouge_scores = scorer.score(ground_truth, generated_answer)
-    rouge1_scores.append(rouge_scores["rouge1"].fmeasure)
-    rougeL_scores.append(rouge_scores["rougeL"].fmeasure)
+    try:
+        # Send chatbot-generated answer to evaluation LLM (localhost:8001)
+        response = requests.post("http://localhost:8001/evaluate",
+                                 json={"prompt": eval_prompt}, timeout=30)
+        response.raise_for_status()
+        response_text = response.json().get("response", "").strip()
+        score = extract_numeric_score(response_text)
+        if score is not None:
+            llm_scores.append(score)
+        else:
+            print(f"⚠️ Unable to parse numeric score from LLM evaluation response: '{response_text}'")
+    except requests.exceptions.ConnectionError:
+        print("Error: LLM evaluation server is not running. Please start the server.")
+        exit()
+    except requests.exceptions.Timeout:
+        print(f"⚠️ Timeout: LLM evaluation took too long for query: {test_query}")
+    except requests.exceptions.RequestException as e:
+        print(f"Error: {e}")
+    except ValueError:
+        print(f"⚠️ Invalid score received from LLM: {response_text}")
 
 # Compute overall scores
 retrieval_accuracy = correct_retrievals / total * 100
-answer_accuracy = correct_answers / total * 100
-avg_bleu = sum(bleu_scores) / total * 100 if bleu_scores else 0
-avg_rouge1 = sum(rouge1_scores) / total * 100 if rouge1_scores else 0
-avg_rougeL = sum(rougeL_scores) / total * 100 if rougeL_scores else 0
+avg_llm_score = sum(llm_scores) / len(llm_scores) if llm_scores else 0
 
 # Display results
 print(f"Retrieval Accuracy: {retrieval_accuracy:.2f}%")
-print(f"LLM Answer Accuracy: {answer_accuracy:.2f}%")
-print(f"Average BLEU Score: {avg_bleu:.2f}")
-print(f"Average ROUGE-1 Score: {avg_rouge1:.2f}")
-print(f"Average ROUGE-L Score: {avg_rougeL:.2f}")
+print(f"Average LLM Evaluation Score: {avg_llm_score:.2f}/10")
